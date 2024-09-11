@@ -1,0 +1,428 @@
+
+###训练集
+if(T){
+  
+  rm(list = ls())
+  setwd("/data/nas1/yangjiajin/project/JNZK-209/01.DEG/")
+  
+  library(limma)
+  group = read.table("../00.data/group.txt",sep="\t",header=T,check.names=F)
+  group_list = as.character(group[,2])   #将第二列保存成一个列表
+  
+  exprSet = read.table("../00.data/expr_GSE12649.txt",sep="\t",header=T,check.names=F,row.names = 1)
+  exprSet = log2(exprSet + 1)
+  
+  design <- model.matrix(~0+factor(group_list))
+  colnames(design)=levels(factor(group_list))
+  rownames(design)=colnames(exprSet)
+  design
+  
+  #contrast.matrix<-makeContrasts(paste0(unique(group_list),collapse = "-"),levels = design)
+  contrast.matrix<-makeContrasts(Treat-Control,levels = design)
+  
+  contrast.matrix ##这个矩阵声明，我们要把progres.组跟stable进行差异分析比较
+  
+  ##step1
+  fit <- lmFit(exprSet,design)
+  ##step2
+  fit2 <- contrasts.fit(fit, contrast.matrix) ##这一步很重要，大家可以自行看看效果
+  fit2 <- eBayes(fit2)  ## default no trend !!!
+  ##eBayes() with trend=TRUE
+  ##step3
+  tempOutput = topTable(fit2, coef=1, n=Inf)
+  nrDEG = na.omit(tempOutput) 
+  #write.csv(nrDEG2,"limma_notrend.results.csv",quote = F)
+  head(nrDEG)
+  write.table(nrDEG,file="01.DEG_ALL.txt",sep="\t",quote=F,row.names = T)
+  
+  ###筛选差异基因
+  filter_diff <- subset(nrDEG,P.Value < 0.05)
+  ##过滤上调、下调基因
+  filter_up <- subset(nrDEG,P.Value < 0.05 & logFC > 0) #过滤上调基因
+  filter_down <- subset(nrDEG,P.Value < 0.05 & logFC < 0) #过滤下调基因
+  
+  # ###筛选差异基因
+  # filter_diff <- subset(nrDEG,P.Value < 0.05 & abs(logFC)>1)
+  # ##过滤上调、下调基因
+  # filter_up <- subset(nrDEG,P.Value < 0.05 & logFC > 1) #过滤上调基因
+  # filter_down <- subset(nrDEG,P.Value < 0.05 & logFC < -1) #过滤下调基因
+  
+  write.table(filter_diff, file = "02.DEG.txt",sep="\t",quote=F,col.names=T) 
+  write.table(filter_down,file="03.DEGdown.txt",sep="\t",quote=F,col.names=T) 
+  write.table(filter_up, file="04.DEGup.txt",sep="\t",quote=F,col.names=T)
+  
+  gene <- rownames(filter_diff)           #写出基因名
+  write.table(gene,file="deg.txt",sep="\t",quote=F,row.names = F,col.names = "id")
+}
+
+###验证集
+if(T){
+  
+  rm(list = ls())
+  setwd("/data/nas1/yangjiajin/project/JNZK-209-new/06.verify_Logi_ROC/")
+  
+  library(limma)
+  group = read.table("../00.data/group_verify.txt",sep="\t",header=T,check.names=F)
+  group_list = as.character(group[,2])   #将第二列保存成一个列表
+  
+  exprSet = read.table("../00.data/expr_GSE5388.txt",sep="\t",header=T,check.names=F,row.names = 1)
+  exprSet = log2(exprSet + 1)
+  
+  design <- model.matrix(~0+factor(group_list))
+  colnames(design)=levels(factor(group_list))
+  rownames(design)=colnames(exprSet)
+  design
+  
+  #contrast.matrix<-makeContrasts(paste0(unique(group_list),collapse = "-"),levels = design)
+  contrast.matrix<-makeContrasts(Treat-Control,levels = design)
+  
+  contrast.matrix ##这个矩阵声明，我们要把progres.组跟stable进行差异分析比较
+  
+  ##step1
+  fit <- lmFit(exprSet,design)
+  ##step2
+  fit2 <- contrasts.fit(fit, contrast.matrix) ##这一步很重要，大家可以自行看看效果
+  fit2 <- eBayes(fit2)  ## default no trend !!!
+  ##eBayes() with trend=TRUE
+  ##step3
+  tempOutput = topTable(fit2, coef=1, n=Inf)
+  nrDEG = na.omit(tempOutput) 
+  #write.csv(nrDEG2,"limma_notrend.results.csv",quote = F)
+  head(nrDEG)
+  write.table(nrDEG,file="verifyDEG_ALL.txt",sep="\t",quote=F,row.names = T)
+  
+  ###筛选差异基因
+  filter_diff <- subset(nrDEG,P.Value < 0.05)
+  ##过滤上调、下调基因
+  filter_up <- subset(nrDEG,P.Value < 0.05 & logFC > 0) #过滤上调基因
+  filter_down <- subset(nrDEG,P.Value < 0.05 & logFC < 0) #过滤下调基因
+  
+  # ###筛选差异基因
+  # filter_diff <- subset(nrDEG,P.Value < 0.05 & abs(logFC)>1)
+  # ##过滤上调、下调基因
+  # filter_up <- subset(nrDEG,P.Value < 0.05 & logFC > 1) #过滤上调基因
+  # filter_down <- subset(nrDEG,P.Value < 0.05 & logFC < -1) #过滤下调基因
+  
+  write.table(filter_diff, file = "verifyDEG.txt",sep="\t",quote=F,col.names=T) 
+  
+  gene <- rownames(filter_diff)           #写出基因名
+  write.table(gene,file="deg.txt",sep="\t",quote=F,row.names = F,col.names = "id")
+}
+
+####火山图差异标准设置
+
+adjP = 0.05
+aflogFC = 0
+names(nrDEG)[4] <- "padj"
+
+if(T){
+  
+  Significant=ifelse(nrDEG$P.Value < adjP, ifelse(nrDEG$logFC > 0,"Up","Down"), "Not")
+  #开始绘制
+  pdf("05.volplot.pdf",width=7,height=7)
+  p = ggplot(nrDEG, aes(logFC, -log10(P.Value)))+
+    geom_point(aes(col=Significant),size=3)+
+    scale_color_manual(values=c("#8AB2DF", "#838B8B", "#FF425D"))+
+    labs(title = " ")+
+    theme(plot.title = element_text(size = 25, hjust = 0.5, face = "bold"))+
+    geom_hline(aes(yintercept=-log10(adjP)), colour="gray", linetype="twodash",size=1)+
+    geom_vline(aes(xintercept=0), colour="gray", linetype="twodash",size=1)+
+    #geom_vline(aes(xintercept=-aflogFC), colour="gray", linetype="twodash",size=1)+
+    theme_bw() +
+    theme(axis.title = element_text(size = 20))+
+    theme(axis.text = element_text(size = 20))+
+    coord_cartesian(xlim=c(-1,1))
+  p
+  dev.off()
+  
+  png("05.volplot.png",width=7,height=7,units = "in",res =600)
+  p = ggplot(nrDEG, aes(logFC, -log10(P.Value)))+
+    geom_point(aes(col=Significant),size=3)+
+    scale_color_manual(values=c("#8AB2DF", "#838B8B", "#FF425D"))+
+    labs(title = " ")+
+    theme_bw()+
+    theme(plot.title = element_text(size = 20, hjust = 0.5, face = "bold"))+
+    geom_hline(aes(yintercept=-log10(adjP)), colour="gray", linetype="twodash",size=1)+
+    geom_vline(aes(xintercept=aflogFC), colour="gray", linetype="twodash",size=1)+
+    geom_vline(aes(xintercept=-aflogFC), colour="gray", linetype="twodash",size=1)+
+    theme(axis.title = element_text(size = 23))+
+    theme(axis.text = element_text(size = 23))+
+    coord_cartesian(xlim=c(-1,1))
+  p
+  dev.off()
+}
+
+##添加标记，按照
+# point.Pvalue=0.00015
+# point.logFc=1.96
+# #继续绘制
+# Diff$symbol=rownames(Diff)
+# pdf("DIFF_vol.pdf",width=5.5,height=5)
+# p=p+theme_bw()
+# for_label <- Diff %>% 
+#   filter(abs(logFC) >point.logFc & P.Value< point.Pvalue & B<1)
+# p+geom_point(size = 2, shape = 1, data = for_label) +
+#   ggrepel::geom_label_repel(
+#     aes(label = symbol),
+#     data = for_label,
+#     color="black",
+#     label.size =0.1
+#   )
+# dev.off()
+
+#热图
+if(T){
+  train_count <- exprSet
+  train_count[i,]
+  DEG <- read.table("02.DEG.txt",sep = "\t",check.names = F,header = T,row.names = 1)
+  
+  up_DEG <- DEG[which(DEG$logFC > 0),]
+  up_DEG <- up_DEG[order(-up_DEG$logFC, up_DEG$adj.P.Val),]
+  down_DEG <- DEG[which(DEG$logFC < 0),]
+  down_DEG <- down_DEG[order(down_DEG$logFC, down_DEG$adj.P.Val),]
+  
+  suppressMessages(library(pheatmap))
+  suppressMessages(library(RColorBrewer))
+  
+  data_repel2 <- rbind(up_DEG[1:10,], down_DEG[1:10,])
+  data_repel2$Symbols <- rownames(data_repel2)
+  
+  exprSet=log(edgeR::cpm(train_count)+1)
+  mat1 <- data.frame()
+  mat <- data.frame()       #最终提取生成的数据框
+  for(i in data_repel2$Symbols){
+    mat1 = train_count[which(rownames(train_count) == i),]
+    mat <- rbind(mat,mat1)
+  }
+  mat <- t(scale(t(mat)))
+  mat[mat>2] <- 2
+  mat[mat<-2] <- -2
+  
+  train_group <- read.table("../00.data/group.txt",sep = "\t",check.names = 1,header = T)
+  names(train_group)[2] <- "group"
+  names(train_group)[1] <- "sample"
+  #train_group[train_group == "Normal"] = "Control"
+  
+  train_group$group <- factor(train_group$group, levels = c("Control", "Treat"))
+  annotation_col <- data.frame(
+    Group = train_group$group,
+    row.names = train_group$sample
+  )
+  ann_colors <- list(
+    Group = c(Control="blue", Treat="#EB0000"),
+    Expression = c( Up="#FF425D",Down="#8AB2DF")
+  )
+  
+  data_repel2 <- transform(data_repel2,change = "")    #添加一列
+  
+  #write.table(data_repel2,file = "20_gene.txt", sep = "\t", quote = F)   #增加一列change,分为UP和DOWN
+  data_repel2 <- read.table("20_gene.txt", header = T, check.names = F)
+  
+  head(data_repel2[order(data_repel2$change, decreasing = T),]$change)
+  
+  mat <- mat[data_repel2[order(data_repel2$change, decreasing = T),]$Symbols,]
+  mat <- mat[data_repel2$Symbols,]
+  mat <- mat[,train_group[order(train_group$group),]$sample]
+  gene_col <- data.frame(Expression=c(rep("Up",10), rep("Down", 10)))
+  rownames(gene_col) <- rownames(mat)
+  
+  newnames <- lapply(
+    rownames(mat),
+    function(x) bquote(italic(.(x))))
+  
+  phtmap <- pheatmap::pheatmap(mat, show_colnames = F)
+  row_dend <- phtmap$tree_row
+  row_dend <- dendextend::rotate(row_dend, order = rownames(gene_col))
+  row_dend <- as.hclust(row_dend)
+  pheatplot <- pheatmap(mat=mat,
+                        # scale = "row",
+                        annotation_col = annotation_col,
+                        annotation_row = gene_col,
+                        annotation_colors = ann_colors,
+                        color = colorRampPalette(c("navy", "white", "firebrick3"))(50),
+                        fontsize = 14,
+                        labels_row = as.expression(newnames),
+                        show_colnames = FALSE,
+                        cluster_cols = F,
+                        cluster_rows = F,
+                        annotation_names_row = F
+  )
+  ggsave(file="06.pheatmap.png", height = 7, width = 12, pheatplot)
+  ggsave(file="06.pheatmap.pdf", height = 7, width = 12, pheatplot)
+  
+  dev.off()
+}
+
+
+#####热图旧=======================================================================
+library(plyr)
+##制作热图输入的10个基因名
+deg_down <- read.table("03.DEGdown.txt", sep = "\t",header = T)
+deg_down <- transform(deg_down,id = rownames(deg_down))    #添加一列
+
+#names(deg_down)[1] <-"id"      #更改指定列的列名
+deg_down = arrange(deg_down,logFC)   #对log2FoldChange列进行排序
+deg_down1 = deg_down[1:10,]                   #取前10个
+row_down <- deg_down1$id                 #获得这10个数据的列名（基因名）
+id_down = data.frame(id = row_down)           #制成列表
+
+deg_up <- read.table("04.DEGup.txt", sep = "\t",header = T)
+deg_up <- transform(deg_up,id = rownames(deg_up))    #添加一列
+deg_up = arrange(deg_up,-logFC)     #对log2FoldChange列进行排序(大到小)
+deg_up1 = deg_up[1:10,]                      #取前10个
+row_up <- deg_up1$id                  #获得这10个数据的列名（基因名）
+id_up = data.frame(id = row_up)            #制成列表
+
+id <- bind_rows(id_up,id_down)               #汇总成20个基因
+
+
+expr_GEO=read.table("../00.data/expr_GSE12649.txt",sep="\t",header=T,check.names=F)     #原版数据文件
+expr_GEO <- transform(expr_GEO,id = rownames(expr_GEO))    #添加一列
+emp <- merge(id,expr_GEO,by = "id")                          #在原版数据文件中选出id
+rownames(emp)<-emp[,1] #将数据框的第一列作为行名
+
+emp<-emp[,-1] #将数据框的第一列删除，只留下剩余的列作为数据
+
+
+library(pheatmap)
+library(ggplot2)
+library(limma)
+library(pheatmap)
+library(ggsci)
+library(dplyr)
+Type=c(rep("Cortrol",34),rep("Disease",33))            #原始数据里面的情况
+names(Type)=colnames(emp)
+Type=as.data.frame(Type)
+
+anncolor=list(Type=c(T=pal_npg()(1),N=pal_npg()(2)[2]))
+
+pdf("06.pheatmap.pdf",height=12,width=28)
+pheatmap(emp, annotation=Type, 
+         color = colorRampPalette(c("#0066FF", "#E6E6FA", "#FF0000"))(50),
+         #color = colorRampPalette(c(pal_npg()(2)[2],"white", pal_npg()(1)))(50),
+         cluster_cols =F,            #不添加列聚类树
+         show_colnames =F,          #展示列名
+         #border_color="NA",
+         fontsize = 23,
+         fontsize_row=20,
+         fontsize_col=20,
+         #annotation_colors=anncolor,
+         scale = "row")
+dev.off()
+
+png("pheatmap.png",height=12,width=23,units = 'in',res =800)
+pheatmap(emp, annotation=Type, 
+         color = colorRampPalette(c("#0066FF", "#E6E6FA", "#FF0000"))(50),
+         cluster_cols =F,
+         show_colnames = F,
+         fontsize = 23,
+         fontsize_row=20,
+         fontsize_col=20,
+         scale = "row")
+dev.off()
+
+
+
+
+#####热图返修==========================================================
+library(pheatmap)
+library(ggplot2)
+library(ggsci)
+library(dplyr)
+nrDEG1 <- read.table("01.DEG_ALL.txt", sep = "\t",header = T,check.names = F)    #会有NA
+nrDEG <- na.omit(nrDEG1)                                         #去除有NA的行
+#write.table(nrDEG, file="01.DEG_ALL.txt",sep="\t",quote=F,col.names=T)      #重新写一文件
+
+#筛选条件
+adjP = 0.05
+aflogFC = 0
+
+
+
+
+#选取上下调前10对其进行标识
+DEG <- read.table("02.DEG.txt",sep = "\t",check.names = F,header = T,row.names = 1)
+up_DEG <- DEG[which(DEG$logFC > 0),]
+up_DEG <- up_DEG[order(-up_DEG$logFC),]
+down_DEG <- DEG[which(DEG$logFC < 0),]
+down_DEG <- down_DEG[order(down_DEG$logFC),]
+
+data_repel2 <- rbind(up_DEG[1:10,], down_DEG[1:10,])        #此数据框即为标识哪些点
+data_repel2 <- cbind(data_repel2,symbol = rownames(data_repel2))
+
+train_count <- read.table("../00.data/expr_GSE12649.txt", header = T, check.names = F,row.names = 1)
+
+
+
+exprSet=log(edgeR::cpm(train_count)+1)
+mat1 <- data.frame()
+mat <- data.frame()       #最终提取生成的数据框
+for(i in data_repel2$symbol){
+  mat1 = train_count[which(rownames(train_count) == i),]
+  mat <- rbind(mat,mat1)
+}
+mat <- t(scale(t(mat)))
+mat[mat>2] <- 2
+mat[mat<-2] <- -2
+
+
+count <- train_count[rownames(gene_col),]
+count1 <- count[,colnames(mat)] 
+identical(rownames(count1),rownames(mat))
+
+
+train_group <- read.table("../00.data/group.txt",sep = "\t",check.names = 1,header = T)
+names(train_group)[2] <- "group"
+names(train_group)[1] <- "sample"
+train_group[,2][train_group[,2] == "Treat"] = "Disease"
+
+
+train_group$group <- factor(train_group$group, levels = c("Control", "Disease"))
+annotation_col <- data.frame(
+  Group = train_group$group,
+  row.names = train_group$sample
+)
+ann_colors <- list(
+  Group = c(Control="#00C9A7", Disease="#FF9671"),
+  Expression = c( Up="#FF425D",Down="#8AB2DF")
+)
+
+data_repel2 <- transform(data_repel2,change = "")    #添加一列
+names(data_repel2)[6] <- "Symbols"
+data_repel2[,7][data_repel2[,1] > 0 ] = "UP"
+data_repel2[,7][data_repel2[,1] < 0 ] = "DOWN"
+
+
+head(data_repel2[order(data_repel2$change, decreasing = T),]$change)
+
+mat <- mat[data_repel2[order(data_repel2$change, decreasing = T),]$Symbols,]
+mat <- mat[data_repel2$Symbols,]
+mat <- mat[,train_group[order(train_group$group),]$sample]
+gene_col <- data.frame(Expression=c(rep("Up",10), rep("Down", 10)))
+rownames(gene_col) <- rownames(mat)
+
+newnames <- lapply(
+  rownames(mat),
+  function(x) bquote(italic(.(x))))
+
+phtmap <- pheatmap::pheatmap(mat, show_colnames = F)
+row_dend <- phtmap$tree_row
+row_dend <- dendextend::rotate(row_dend, order = rownames(gene_col))
+row_dend <- as.hclust(row_dend)
+pheatplot <- pheatmap(mat=mat,
+                      # scale = "row",
+                      annotation_col = annotation_col,
+                      annotation_row = gene_col,
+                      annotation_colors = ann_colors,
+                      color = colorRampPalette(c("navy", "white", "firebrick3"))(50),
+                      fontsize = 14,
+                      labels_row = as.expression(newnames),
+                      show_colnames = FALSE,
+                      cluster_cols = F,
+                      cluster_rows = F,
+                      annotation_names_row = F
+)
+ggsave(file="pheatmap_new.png", height = 7, width = 12, pheatplot)
+ggsave(file="pheatmap_new.pdf", height = 7, width = 12, pheatplot)
+
+dev.off()
